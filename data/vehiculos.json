@@ -1,0 +1,14 @@
+[
+    {
+        "id": "moto",
+        "nombre": "Moto"
+    },
+    {
+        "id": "auto",
+        "nombre": "Auto"
+    },
+    {
+        "id": "camioneta",
+        "nombre": "Camioneta"
+    }
+]

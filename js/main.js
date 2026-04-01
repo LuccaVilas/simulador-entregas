@@ -1,80 +1,134 @@
-// INICIO DEL SIMULADOR
+const selectVehiculo = document.getElementById("vehiculo");
+const inputCantidadPedidos = document.getElementById("cantidadPedidos");
+const botonGenerarPedidos = document.getElementById("generarPedidos");
+const contenedorPedidos = document.getElementById("contenedorPedidos");
+const botonCalcularRecorrido = document.getElementById("calcularRecorrido");
+const resultado = document.getElementById("resultado");
 
-alert("Bienvenido al simulador de entregas");
-console.log("Simulador iniciado");
+let vehiculos = [];
+let entregasGuardadas = JSON.parse(localStorage.getItem("entregas")) || [];
 
-// VARIABLES, CONSTANTES Y ARRAY
+class Entrega {
+    constructor(vehiculo, pedidos, kilometros) {
+        this.vehiculo = vehiculo;
+        this.pedidos = pedidos;
+        this.kilometros = kilometros;
+    }
 
-const vehiculos = ["moto", "auto", "camioneta"];
-const precioCombustible = 1200;
+    mostrarResumen() {
+        return `
+            <p><strong>Vehículo:</strong> ${this.vehiculo}</p>
+            <p><strong>Cantidad de pedidos:</strong> ${this.pedidos}</p>
+            <p><strong>Kilómetros totales:</strong> ${this.kilometros} km</p>
+        `;
+    }
+}
 
-let vehiculoElegido;
-let cantidadPedidos;
-let kilometrosTotales = 0;
+async function cargarVehiculos() {
+    try {
+        const respuesta = await fetch("./data/vehiculos.json");
 
-// FUNCIONES
-
-function elegirVehiculo() {
-    let opcionValida = false;
-    while (!opcionValida) {
-        vehiculoElegido = prompt(
-            "Elegí el vehículo para repartir:\n\n1 - Moto\n2 - Auto\n3 - Camioneta"
-        );
-        if (vehiculoElegido == "1") {
-            vehiculoElegido = "moto";
-            opcionValida = true;
-        } 
-        else if (vehiculoElegido == "2") {
-            vehiculoElegido = "auto";
-            opcionValida = true;
-        } 
-        else if (vehiculoElegido == "3") {
-            vehiculoElegido = "camioneta";
-            opcionValida = true;
-        } 
-        else {
-            alert("Opción inválida. Elegí 1, 2 o 3.");
+        if (!respuesta.ok) {
+            throw new Error("No se pudo cargar el archivo JSON");
         }
+
+        vehiculos = await respuesta.json();
+
+        selectVehiculo.innerHTML = '<option value="">Seleccionar</option>';
+
+        vehiculos.forEach(function (vehiculo) {
+            const option = document.createElement("option");
+            option.value = vehiculo.id;
+            option.textContent = vehiculo.nombre;
+            selectVehiculo.appendChild(option);
+        });
+    } catch (error) {
+        resultado.innerHTML = "<p>Error al cargar los vehículos.</p>";
     }
-    console.log("Vehículo elegido:", vehiculoElegido);
 }
 
-function cargarPedidos() {
-    cantidadPedidos = parseInt(prompt("¿Cuántos pedidos vas a entregar?"));
-while (isNaN(cantidadPedidos) || cantidadPedidos <= 0) {
-    cantidadPedidos = parseInt(prompt("Ingresá un número válido de pedidos"));}
-    kilometrosTotales = 0;
+function generarInputsPedidos() {
+    const cantidadPedidos = parseInt(inputCantidadPedidos.value);
+
+    contenedorPedidos.innerHTML = "";
+
+    if (isNaN(cantidadPedidos) || cantidadPedidos <= 0) {
+        resultado.innerHTML = "<p>Ingresá una cantidad válida de pedidos.</p>";
+        return;
+    }
+
     for (let i = 1; i <= cantidadPedidos; i++) {
-    let km = parseFloat(prompt("Ingresá los kilómetros del pedido " + i));
-while (isNaN(km) || km <= 0) {
-    km = parseFloat(prompt("Ingresá kilómetros válidos para el pedido " + i));
-}
-        kilometrosTotales = kilometrosTotales + km;
-        console.log("Pedido", i, "-", km, "km");
+        const inputKm = document.createElement("input");
+        inputKm.type = "number";
+        inputKm.min = "1";
+        inputKm.step = "0.1";
+        inputKm.placeholder = "Kilómetros del pedido " + i;
+        inputKm.classList.add("inputKm");
+        contenedorPedidos.appendChild(inputKm);
     }
-    console.log("Kilómetros totales:", kilometrosTotales);
+
+    resultado.innerHTML = "<p>Ahora ingresá los kilómetros de cada pedido.</p>";
 }
 
-function mostrarResultados() {
-    let mensaje =
-        "RESULTADO DEL SIMULADOR\n\n" +
-        "Vehículo: " + vehiculoElegido + "\n" +
-        "Cantidad de pedidos: " + cantidadPedidos + "\n" +
-        "Kilómetros totales: " + kilometrosTotales + " km";
-    alert(mensaje);
-    console.log("RESULTADO FINAL");
-    console.log("Vehículo:", vehiculoElegido);
-    console.log("Pedidos:", cantidadPedidos);
-    console.log("Kilómetros totales:", kilometrosTotales);
+function calcularKilometrosTotales(inputsKm) {
+    let kilometrosTotales = 0;
+
+    for (const input of inputsKm) {
+        const km = parseFloat(input.value);
+
+        if (isNaN(km) || km <= 0) {
+            return null;
+        }
+
+        kilometrosTotales += km;
+    }
+
+    return kilometrosTotales;
 }
 
-// EJECUCIÓN DEL SIMULADOR
-
-if (confirm("¿Querés iniciar el simulador de entregas?")) {
-    elegirVehiculo();
-    cargarPedidos();
-    mostrarResultados();
-} else {
-    alert("Simulador cancelado");
-    console.log("El usuario canceló el simulador");
+function guardarEntrega(entrega) {
+    entregasGuardadas.push(entrega);
+    localStorage.setItem("entregas", JSON.stringify(entregasGuardadas));
 }
+
+function calcularRecorrido() {
+    const vehiculoElegido = selectVehiculo.value;
+    const cantidadPedidos = parseInt(inputCantidadPedidos.value);
+    const inputsKm = document.querySelectorAll(".inputKm");
+
+    const vehiculoValido = vehiculos.some(function (vehiculo) {
+        return vehiculo.id === vehiculoElegido;
+    });
+
+    if (!vehiculoValido) {
+        resultado.innerHTML = "<p>Elegí un vehículo válido.</p>";
+        return;
+    }
+
+    if (isNaN(cantidadPedidos) || cantidadPedidos <= 0) {
+        resultado.innerHTML = "<p>Ingresá una cantidad válida de pedidos.</p>";
+        return;
+    }
+
+    if (inputsKm.length !== cantidadPedidos) {
+        resultado.innerHTML = "<p>Primero generá los pedidos.</p>";
+        return;
+    }
+
+    const kilometrosTotales = calcularKilometrosTotales(inputsKm);
+
+    if (kilometrosTotales === null) {
+        resultado.innerHTML = "<p>Ingresá kilómetros válidos en todos los pedidos.</p>";
+        return;
+    }
+
+    const entrega = new Entrega(vehiculoElegido, cantidadPedidos, kilometrosTotales);
+
+    resultado.innerHTML = entrega.mostrarResumen();
+    guardarEntrega(entrega);
+}
+
+botonGenerarPedidos.addEventListener("click", generarInputsPedidos);
+botonCalcularRecorrido.addEventListener("click", calcularRecorrido);
+
+cargarVehiculos();
