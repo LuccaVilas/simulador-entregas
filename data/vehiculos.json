@@ -1,14 +1,17 @@
 [
     {
         "id": "moto",
-        "nombre": "Moto"
+        "nombre": "Moto",
+        "consumo": 30
     },
     {
         "id": "auto",
-        "nombre": "Auto"
+        "nombre": "Auto",
+        "consumo": 12
     },
     {
         "id": "camioneta",
-        "nombre": "Camioneta"
+        "nombre": "Camioneta",
+        "consumo": 8
     }
 ]

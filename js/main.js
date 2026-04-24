@@ -1,25 +1,32 @@
 const selectVehiculo = document.getElementById("vehiculo");
 const inputCantidadPedidos = document.getElementById("cantidadPedidos");
+const inputPrecioCombustible = document.getElementById("precioCombustible");
 const botonGenerarPedidos = document.getElementById("generarPedidos");
 const contenedorPedidos = document.getElementById("contenedorPedidos");
 const botonCalcularRecorrido = document.getElementById("calcularRecorrido");
+const botonBorrarHistorial = document.getElementById("borrarHistorial");
 const resultado = document.getElementById("resultado");
+const historial = document.getElementById("historial");
 
 let vehiculos = [];
-let entregasGuardadas = JSON.parse(localStorage.getItem("entregas")) || [];
+let simulacionesGuardadas = JSON.parse(localStorage.getItem("simulaciones")) || [];
 
-class Entrega {
-    constructor(vehiculo, pedidos, kilometros) {
+class Simulacion {
+    constructor(vehiculo, cantidadPedidos, kilometrosTotales, litrosEstimados, costoCombustible) {
         this.vehiculo = vehiculo;
-        this.pedidos = pedidos;
-        this.kilometros = kilometros;
+        this.cantidadPedidos = cantidadPedidos;
+        this.kilometrosTotales = kilometrosTotales;
+        this.litrosEstimados = litrosEstimados;
+        this.costoCombustible = costoCombustible;
     }
 
-    mostrarResumen() {
+    obtenerResumen() {
         return `
-            <p><strong>Vehículo:</strong> ${this.vehiculo}</p>
-            <p><strong>Cantidad de pedidos:</strong> ${this.pedidos}</p>
-            <p><strong>Kilómetros totales:</strong> ${this.kilometros} km</p>
+            <p><strong>Vehículo:</strong> ${this.vehiculo.nombre}</p>
+            <p><strong>Cantidad de pedidos:</strong> ${this.cantidadPedidos}</p>
+            <p><strong>Kilómetros totales:</strong> ${this.kilometrosTotales.toFixed(2)} km</p>
+            <p><strong>Litros estimados:</strong> ${this.litrosEstimados.toFixed(2)} L</p>
+            <p><strong>Costo estimado:</strong> $${this.costoCombustible.toFixed(2)}</p>
         `;
     }
 }
@@ -34,16 +41,16 @@ async function cargarVehiculos() {
 
         vehiculos = await respuesta.json();
 
-        selectVehiculo.innerHTML = '<option value="">Seleccionar</option>';
+        selectVehiculo.innerHTML = '<option value="">Seleccionar vehículo</option>';
 
         vehiculos.forEach(function (vehiculo) {
             const option = document.createElement("option");
             option.value = vehiculo.id;
-            option.textContent = vehiculo.nombre;
+            option.textContent = vehiculo.nombre + " - " + vehiculo.consumo + " km/L";
             selectVehiculo.appendChild(option);
         });
     } catch (error) {
-        resultado.innerHTML = "<p>Error al cargar los vehículos.</p>";
+        Swal.fire("Error", "No se pudieron cargar los vehículos.", "error");
     }
 }
 
@@ -53,7 +60,7 @@ function generarInputsPedidos() {
     contenedorPedidos.innerHTML = "";
 
     if (isNaN(cantidadPedidos) || cantidadPedidos <= 0) {
-        resultado.innerHTML = "<p>Ingresá una cantidad válida de pedidos.</p>";
+        Swal.fire("Dato inválido", "Ingresá una cantidad válida de pedidos.", "warning");
         return;
     }
 
@@ -62,6 +69,7 @@ function generarInputsPedidos() {
         inputKm.type = "number";
         inputKm.min = "1";
         inputKm.step = "0.1";
+        inputKm.value = "5";
         inputKm.placeholder = "Kilómetros del pedido " + i;
         inputKm.classList.add("inputKm");
         contenedorPedidos.appendChild(inputKm);
@@ -86,49 +94,105 @@ function calcularKilometrosTotales(inputsKm) {
     return kilometrosTotales;
 }
 
-function guardarEntrega(entrega) {
-    entregasGuardadas.push(entrega);
-    localStorage.setItem("entregas", JSON.stringify(entregasGuardadas));
+function buscarVehiculoPorId(idVehiculo) {
+    return vehiculos.find(function (vehiculo) {
+        return vehiculo.id === idVehiculo;
+    });
+}
+
+function guardarSimulacion(simulacion) {
+    simulacionesGuardadas.push(simulacion);
+    localStorage.setItem("simulaciones", JSON.stringify(simulacionesGuardadas));
+}
+
+function mostrarHistorial() {
+    historial.innerHTML = "";
+
+    if (simulacionesGuardadas.length === 0) {
+        historial.innerHTML = "<p>No hay simulaciones guardadas todavía.</p>";
+        return;
+    }
+
+    simulacionesGuardadas.forEach(function (simulacion, index) {
+        const tarjeta = document.createElement("div");
+        tarjeta.classList.add("tarjetaHistorial");
+
+        tarjeta.innerHTML = `
+            <h3>Simulación ${index + 1}</h3>
+            <p><strong>Vehículo:</strong> ${simulacion.vehiculo.nombre}</p>
+            <p><strong>Pedidos:</strong> ${simulacion.cantidadPedidos}</p>
+            <p><strong>Kilómetros:</strong> ${simulacion.kilometrosTotales.toFixed(2)} km</p>
+            <p><strong>Litros:</strong> ${simulacion.litrosEstimados.toFixed(2)} L</p>
+            <p><strong>Costo:</strong> $${simulacion.costoCombustible.toFixed(2)}</p>
+        `;
+
+        historial.appendChild(tarjeta);
+    });
 }
 
 function calcularRecorrido() {
-    const vehiculoElegido = selectVehiculo.value;
+    const vehiculoSeleccionado = buscarVehiculoPorId(selectVehiculo.value);
     const cantidadPedidos = parseInt(inputCantidadPedidos.value);
+    const precioCombustible = parseFloat(inputPrecioCombustible.value);
     const inputsKm = document.querySelectorAll(".inputKm");
 
-    const vehiculoValido = vehiculos.some(function (vehiculo) {
-        return vehiculo.id === vehiculoElegido;
-    });
-
-    if (!vehiculoValido) {
-        resultado.innerHTML = "<p>Elegí un vehículo válido.</p>";
+    if (!vehiculoSeleccionado) {
+        Swal.fire("Falta vehículo", "Elegí un vehículo para continuar.", "warning");
         return;
     }
 
     if (isNaN(cantidadPedidos) || cantidadPedidos <= 0) {
-        resultado.innerHTML = "<p>Ingresá una cantidad válida de pedidos.</p>";
+        Swal.fire("Dato inválido", "Ingresá una cantidad válida de pedidos.", "warning");
+        return;
+    }
+
+    if (isNaN(precioCombustible) || precioCombustible <= 0) {
+        Swal.fire("Dato inválido", "Ingresá un precio válido de combustible.", "warning");
         return;
     }
 
     if (inputsKm.length !== cantidadPedidos) {
-        resultado.innerHTML = "<p>Primero generá los pedidos.</p>";
+        Swal.fire("Faltan pedidos", "Primero generá los pedidos.", "warning");
         return;
     }
 
     const kilometrosTotales = calcularKilometrosTotales(inputsKm);
 
     if (kilometrosTotales === null) {
-        resultado.innerHTML = "<p>Ingresá kilómetros válidos en todos los pedidos.</p>";
+        Swal.fire("Dato inválido", "Ingresá kilómetros válidos en todos los pedidos.", "warning");
         return;
     }
 
-    const entrega = new Entrega(vehiculoElegido, cantidadPedidos, kilometrosTotales);
+    const litrosEstimados = kilometrosTotales / vehiculoSeleccionado.consumo;
+    const costoCombustible = litrosEstimados * precioCombustible;
 
-    resultado.innerHTML = entrega.mostrarResumen();
-    guardarEntrega(entrega);
+    const simulacion = new Simulacion(
+        vehiculoSeleccionado,
+        cantidadPedidos,
+        kilometrosTotales,
+        litrosEstimados,
+        costoCombustible
+    );
+
+    resultado.innerHTML = simulacion.obtenerResumen();
+    guardarSimulacion(simulacion);
+    mostrarHistorial();
+
+    Swal.fire("Simulación guardada", "El recorrido fue calculado correctamente.", "success");
+}
+
+function borrarHistorial() {
+    simulacionesGuardadas = [];
+    localStorage.removeItem("simulaciones");
+    mostrarHistorial();
+    resultado.innerHTML = "<p>Completá los datos para ver el resultado.</p>";
+
+    Swal.fire("Historial eliminado", "Se borraron todas las simulaciones.", "success");
 }
 
 botonGenerarPedidos.addEventListener("click", generarInputsPedidos);
 botonCalcularRecorrido.addEventListener("click", calcularRecorrido);
+botonBorrarHistorial.addEventListener("click", borrarHistorial);
 
 cargarVehiculos();
+mostrarHistorial();
